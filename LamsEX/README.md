@@ -77,6 +77,24 @@ line here: chests (`entity/chest/normal`), beds (`entity/bed/red`), cat and hors
 villager professions and similar. Without one, LamsEX can't find the model, and a 64x64
 texture opens on the player model instead.
 
+**owen_ mods.** These mobs reuse other mobs' models with their own textures, so EMF exports
+them only under the original mob's name. `tools/update-owen-mobs.bat` (copied next to
+`LamsEX.exe`, with `tools/owen_mobs.py` and `tools/vanilla-names.json` in a `tools` folder
+beside it) keeps LamsEX in step; run it again whenever the mods change. It needs Python 3.
+It copies the `assets` of every enabled `owen_*.jar` in the instance's mods folder (found from
+`entity_library`) into `owen_assets`, adds that folder to `config.txt` as a resource folder,
+and reads each mod's classes to find the model each mob texture is drawn with: the renderer it
+extends or the model layer it uses, or the vanilla mob it is spawned as. The pairings go into
+`lamsex-library.txt` between `# >>> owen mods` and `# <<< owen mods`; anything outside those
+lines is kept. Open a mob by dropping its PNG from `owen_assets` into LamsEX.
+`owen-mobs-report.txt` lists what matched and what didn't. To fix or add a pairing, put a line
+in `owen-models.txt` next to `LamsEX.exe`, or ship `assets/<modid>/lamsex.txt` inside the mod,
+both in the `lamsex-library.txt` format; those lines win over the guesses:
+
+```
+aquamirae/optifine/cem/eel.jem = owen_creatures:entity/jarlwurm
+```
+
 ## Developing
 
 Needs Node.js and Rust (MSVC toolchain).
