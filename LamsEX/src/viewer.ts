@@ -23,6 +23,8 @@ export class Viewer {
   private center = new THREE.Group(); // puts the model's middle at the origin
   private model: BuiltModel | null = null;
   private yaw = 0;
+  private baseYaw = 0; // degrees, from the model's display rotation
+  private basePitch = 0;
   private pitch = 0;
   private zoom = 1;
   private fitDistance = 60;
@@ -90,12 +92,18 @@ export class Viewer {
     }
     this.model = m;
     this.center.add(m.object);
-    this.base.quaternion.setFromEuler(m.baseRotation);
+    // The display rotation (XYZ Euler = pitch, then yaw, then roll) is folded into the user's
+    // pitch/yaw in applyRotation, so dragging turns a block around its own vertical axis instead
+    // of wobbling it around the screen's. Only the roll part stays here.
+    const b = m.baseRotation;
+    this.basePitch = THREE.MathUtils.radToDeg(b.x);
+    this.baseYaw = THREE.MathUtils.radToDeg(b.y);
+    this.base.quaternion.setFromAxisAngle(new THREE.Vector3(0, 0, 1), b.z);
     m.parts.forEach((p, name) => { const q = poses.get(name); if (q) p.quaternion.copy(q); });
     if (!keepView || !old || old.kind !== m.kind) {
       this.fit();
       this.resetAll();
-    }
+    } else this.applyRotation(); // the display rotation may have changed
     this.setupAnimation();
     this.requestRender();
   }
@@ -120,8 +128,10 @@ export class Viewer {
   }
 
   private applyRotation() {
-    const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(this.yaw));
-    const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(this.pitch));
+    // Like a LAMS head: turn around the model's own vertical axis, tilt around the screen's
+    // horizontal axis, never roll.
+    const qy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(this.yaw + this.baseYaw));
+    const qx = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), THREE.MathUtils.degToRad(this.pitch + this.basePitch));
     this.pivot.quaternion.copy(qx.multiply(qy));
     this.requestRender();
   }

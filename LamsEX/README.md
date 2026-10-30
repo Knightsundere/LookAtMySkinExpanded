@@ -21,6 +21,7 @@ First match wins, like resource pack order. A PNG you open from inside a folder 
 
 | Action | Default key |
 | --- | --- |
+| Open a file | Model button, or drop the file on the window |
 | Rotate model | Left-drag on empty space or the body |
 | Pose a limb / head (skins), or a bone (Blockbench / GeckoLib) | Left-drag on it |
 | Zoom / reset zoom | Scroll wheel / middle click |

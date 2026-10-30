@@ -6,6 +6,7 @@ import { SceneTexture, parseMcmeta, missingTexture } from "./textures";
 import { Viewer } from "./viewer";
 import { Hud } from "./hud";
 import { EntityLibrary } from "./library";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { loadState, restoreWindow, updateState, type AppState } from "./appstate";
 import { buildSkin, guessSlim, skinFormat } from "./models/player";
 import { buildJsonModel, resolveModel, type ModelLoader } from "./models/blockmodel";
@@ -470,6 +471,13 @@ async function pickModel() {
   await reloadConfig(true);
   viewer.requestRender();
   (window as unknown as { lamsOpen: (p: string) => Promise<void> }).lamsOpen = (p) => openPath(p);
+  // Dropping a file on the window opens it, like the Model button (desktop app only:
+  // a browser drop doesn't give the file's path).
+  if ("__TAURI_INTERNALS__" in window) {
+    void getCurrentWebview().onDragDropEvent((e) => {
+      if (e.payload.type === "drop" && e.payload.paths.length) void openPath(e.payload.paths[0]);
+    });
+  }
   // Reopen the model from last time, with its arm type.
   const last = saved.model;
   if (last && (await platform.pathKind(last.path)) === "file") {
