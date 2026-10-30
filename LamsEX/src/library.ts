@@ -33,6 +33,23 @@ const byName = (files: string[], name: string, ns: string) => {
   return hits.find((f) => toSlash(f).toLowerCase().includes(`/${ns.toLowerCase()}/`)) ?? hits[0];
 };
 
+/**
+ * Model names to try for a texture, best first. Variant textures rarely share the model's name, so
+ * after the file name this tries it with its folder (boat/oak -> oak_boat), the folders it sits in
+ * (axolotl/axolotl_lucy -> axolotl, villager/profession/farmer -> villager), then shorter forms of
+ * the name (spider_eyes -> spider).
+ */
+function textureNames(path: string): string[] {
+  const parts = path.toLowerCase().split("/").filter((p) => p !== "entity");
+  const name = parts.pop()!;
+  const out = [name];
+  if (parts.length) out.push(`${name}_${parts[parts.length - 1]}`);
+  out.push(...parts.reverse());
+  const words = name.split("_");
+  for (let i = words.length - 1; i > 0; i--) out.push(words.slice(0, i).join("_"));
+  return [...new Set(out)];
+}
+
 export class EntityLibrary {
   constructor(readonly dir: string | null) {}
 
@@ -68,8 +85,8 @@ export class EntityLibrary {
     const id = normId(texId);
     const line = lines.find((l) => l.textures.includes(id));
     if (line) return { match: { file: line.file, textureId: id }, errors };
-    const name = parseId(id).path.split("/").pop()!.toLowerCase();
-    const file = byName(files, name, parseId(id).ns);
+    const { ns, path } = parseId(id);
+    const file = textureNames(path).map((n) => byName(files, n, ns)).find(Boolean);
     return { match: file ? { file, textureId: id } : null, errors };
   }
 

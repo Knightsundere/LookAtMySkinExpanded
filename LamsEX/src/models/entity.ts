@@ -74,8 +74,34 @@ const BODY_NAMES = /^(body|root|main|base|torso|all|bb_main|everything|model)$/i
 function isPoseable(g: EGroup, topLevel: boolean) {
   // Body-named bones turn the model at any depth: GeckoLib models often nest them (root > body > head, arms).
   if (BODY_NAMES.test(g.name)) return false;
+  if (attached.has(g)) return false; // dragging the beak turns the head it belongs to
   if (!topLevel) return true;
-  return !g.children.some((c) => c.kind === "group");
+  return !g.children.some((c) => c.kind === "group" && !attached.has(c));
+}
+
+/** Bones moved under a head by attachToHeads; they don't stop the head being poseable. */
+const attached = new WeakSet<ENode>();
+const same = (a: V3, b: V3) => a.every((x, i) => Math.abs(x - b[i]) < 1e-3);
+
+/**
+ * Pieces that sit on a head's pivot but are separate bones (the chicken's beak and wattle) move
+ * with the head in game, because the game copies the head's angles onto them. Make them children
+ * of the head so posing the head carries them along.
+ */
+function attachToHeads(nodes: ENode[]) {
+  const groups = nodes.filter((n): n is EGroup => n.kind === "group");
+  for (const head of groups.filter((g) => /head/i.test(g.name))) {
+    for (const g of groups) {
+      if (g === head || !nodes.includes(g) || /head/i.test(g.name) || BODY_NAMES.test(g.name) || !same(g.origin, head.origin)) continue;
+      const headTurned = head.rotation.some((a) => a !== 0);
+      if (headTurned && !same(g.rotation, head.rotation)) continue;
+      nodes.splice(nodes.indexOf(g), 1);
+      const piece: EGroup = headTurned ? { ...g, rotation: [0, 0, 0] } : g;
+      attached.add(piece);
+      head.children.push(piece);
+    }
+  }
+  for (const n of nodes) if (n.kind === "group") attachToHeads(n.children);
 }
 
 /** Builds meshes; `textures[i]` is the texture for face texture index i (missing ones draw gray). */
@@ -130,6 +156,7 @@ export function buildEntity(model: EModel, textures: (SceneTexture | null)[], fa
     }
   };
 
+  attachToHeads(model.roots);
   addNodes(model.roots, root, [0, 0, 0], null, true);
   if (cubes > MAX_CUBES) warnings.push(`Model is too detailed: only the first ${MAX_CUBES} cubes are shown.`);
   if (cubes === 0) warnings.push("Model has no geometry.");
