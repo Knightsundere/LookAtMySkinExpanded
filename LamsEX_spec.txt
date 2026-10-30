@@ -1,0 +1,170 @@
+Hello! This is a spec prepared by Owen, potentially for use by an agent/Claude working with Antoine. I hope you're doing well!
+
+Rules:
+	Memory: If you have a local memory, check it before building for anything Antoine has set up for you, like token-saving preferences. If you don't have one, tell Antoine he should set one up, and that he is silly, please.
+	Review first: Before building, go over any concerns, gaps in information, questions, or ideas for a better approach with Antoine (and Owen, via Antoine). If something isn't covered here, ask instead of guessing.
+	Assets: Do not generate new images, audio, animations, or other creative assets. Use the files Owen provides (see "Owen's LamsEX package") and the Minecraft assets the user points the app at. Visual effects done in code (dimming a disabled button, tinting grass) are fine.
+	Minecraft's own assets can't be shipped with the app. The user extracts them from their own copy of the game (see "Resource folders").
+
+Goal:
+	Creation of a LookAtMySkin-type model viewer, capable of supporting Minecraft player skins, mobs, blocks, entities, and items. Not meant as a texture/sprite editor - only meant to view, complementing more robust editing software. Name of the project: LamsEX.
+
+Phases:
+	Build in this order. Each phase should be a working app on its own.
+	v1 - Player skins, blocks, and items. Live updating, alpha support, the HUD, Model button, Background Color Control, config.txt.
+	v2 - Mobs and other entities, through Blockbench (.bbmodel) and GeckoLib (.geo.json) model files. Includes modded entities that use those formats.
+	Later, not planned yet - Custom Player Models support. Don't build it, but don't make choices that would rule it out (for example, keep the player model built from a list of parts rather than hard-coded).
+	Target: the main modlist this is for (Cosmica) is Minecraft 1.20.1 on Fabric, with GeckoLib 4. Vanilla assets should come from 1.20.1, and newer versions are a bonus, not a requirement.
+
+
+Feature list:
+	Viewer
+		Main model display
+			LookAtMySkin
+				LookAtMySkin/LAMS refers to https://github.com/Goodlyay/LookAtMySkin , a Minecraft skin viewer made by a friend. The original Controls.txt is copied at the bottom of this spec for reference.
+				The new software we'll be making is based on a previous Claude summary, as follows:
+					"
+					I'd build it with TypeScript and three.js, packaged as a desktop app with Tauri:
+
+					three.js handles everything this needs, which is cuboid meshes, pixelated textures, alpha blending and orbit controls, in very little code. There are also open-source projects that already render Minecraft skins and JSON block models, which we can use as references or dependencies.
+
+					Tauri wraps it as a normal Windows app of a few MB, instead of the roughly 25 MB Unity runtime. It also gives real file access, so the viewer can watch your skin file and refresh on its own every time you save. That alone gets rid of the Space-to-refresh step and the fixed edit1.8.png file names.
+
+					Since it's web tech underneath, the same code could also run as a website with drag-and-drop if you ever want to share it with people outside your group.
+					"
+				Rendering: textures always use nearest-neighbor filtering (crisp pixels, no blur). The app should only redraw when something changes (input, a file update, an animated texture), not run at full frame rate while idle.
+			Non-LAMS Expansions
+				Transparency/alpha channel support
+					LAMS currently doesn't support transparency in the textures that it loads onto the models - on outer layers of the model they don't render at all, and on base layers they remove the alpha channel variance and become 100% opacity. Alpha accuracy on both is ideal.
+					Specifically: fully transparent pixels show nothing and don't hide anything behind them. Partly transparent pixels blend with what's behind them, at their real alpha, on both base and outer layers. Outer layer faces render on both sides, so you can see the inside of a hat through its gaps, like in game. Any PNG bit depth should keep its alpha (LAMS needed 32-bit PNGs; LamsEX shouldn't).
+				Live updating
+					LAMS currently requires pressing "Space" to update the model's texture in-viewer. LamsEX updates live instead: it watches every file the current model uses (the model file itself and each of its textures) and reloads when any of them is saved.
+					Wait about 150 ms after a change before reloading, and retry once if the file is still being written. If a watched file is deleted or renamed, keep showing the last good version and show an error (see Errors).
+				Expanded Viewing
+					Model viewing beyond Minecraft player skins should be possible, including, but not limited to, blocks, entities, mobs, items, or other custom models within the scope of complexity as is standard in Minecraft (high-polygon-count models need not be supported, you have discretion on where that number lies and what considerations are made surrounding it). Details are in the Model button section below.
+				Custom Player Models (later, skip for now)
+					Custom player model features (such as halfskirts, larger hair, tails, ears, etc.) would ideally be compatible/adjustable in the viewer the same as any other player model part some day - these are based on the Custom Player Models mod, git here -> https://github.com/tom5454/CustomPlayerModels . Not part of v1 or v2.
+		HUD
+			Window
+				The app opens in a normal resizable window, default 1280 x 720, minimum 800 x 600. The black area is the 3D view and fills the whole window. Buttons sit on top of it.
+				The blue-gray bar across the top of the mockup is the window's title bar. Use the normal Windows title bar, not a custom one.
+				The pink numbers and border in the mockup are only labels for this spec, not part of the design.
+			Model Viewing
+				The Model should be viewable/positioned in the exact center of the screen (reference mockup for intended approx. location). Manipulation of the model regarding zoom, rotation, model part rotation/manipulation, and position resetting should be referenced from the original LookAtMySkin software for feel and functionality.
+				Controls (keys remappable in config.txt):
+					Rotate model - left click and drag on empty space or the body
+					Pose a part - left click and drag on a limb (skins), or on a bone (Blockbench/GeckoLib models). Blocks and items rotate as a whole only.
+					Zoom - scroll wheel
+					Reset everything (rotation, zoom, poses) - Space. Space no longer refreshes, since refreshing is automatic.
+					Reset rotation only - Backspace. Reset zoom only - middle mouse button. (Same as LAMS.)
+					Toggle classic/slim arms on the current skin - M
+					Screenshot - F2. Saves a PNG of the 3D view, without the buttons, to a "screenshots" folder next to the app.
+					Background brightness - Up Arrow / Down Arrow (see Background Color Control)
+			Buttons
+				Buttons are numbered 1-4 on the left, and 5-8 on the right, referring to their slots (not to their visual text). They sit in the top corners just below the title bar, stacked as in the mockup.
+				Look: button texture is buttontemplate.png, hover is buttonhover.png, press is buttonpress.png (see Owen's LamsEX package). Slice them into a left edge, a stretchable middle, and a right edge, so a button can be any width without stretching its bevels.
+				Label: text color #2F2F35, font = Volume Dealer (https://fontesk.com/volume-dealer-font/, font file in Owen's package), lowercase like the mockup, offset to the bottom left of the button with margins shown in the mockup image.
+				Size: each slot has a fixed size, matching the mockup. All buttons are the same height. There are three widths:
+					Slots 1, 2, 5, 6 - full width (about 2.8 times as wide as it is tall, per the mockup)
+					Slots 3, 7 - about 92% of full width
+					Slots 4, 8 - about 64% of full width
+					Left buttons line up on their left edge; right buttons line up on their right edge. The sizes don't change with the label. If a label is too long for its button (for example a long color name on Button 2), shrink the text to fit, down to a readable minimum, then cut it off with "...".
+				Scaling: draw the button art at a whole-number pixel scale (2x, 3x, ...) so the pixels stay crisp. Pick the largest scale where the buttons take up no more than about a quarter of the window width per side. Recalculate when the window resizes.
+				States: when the cursor enters the button's exact pixel area (ignore fully transparent pixels of the art), the button uses the hover look. While the mouse is held down on it, the button uses the press look. On release it returns to normal and runs its action.
+				Buttons with no function yet (currently 3-8) are hidden completely. Their slots stay reserved at the sizes above, because they'll get functions later.
+				Model button (Button 1) [label: "model"]
+					Opens a file picker. Accepted file types:
+						v1: .png (textures and skins), .json (Minecraft block and item models)
+						v2: .bbmodel (Blockbench), .geo.json (GeckoLib / Bedrock geometry)
+					Any other file type shows the error "Unknown file type."
+					LamsEX tells files apart by their contents and format, not by a list of known file names. There is no whitelist.
+					Model files (.json, .bbmodel, .geo.json)
+						The model file says which textures it uses. LamsEX reads it and loads those textures. This is what makes multi-texture blocks work: oak_log.json uses both oak_log.png and oak_log_top.png, and grass_block.json uses several more.
+						Minecraft .json models: follow the "parent" chain (for example block/oak_log -> block/cube_column -> block/block) to collect the elements and texture variables, and resolve texture ids like "minecraft:block/oak_log" to files in the resource folders. Any namespace works, so modded blocks and items that ship vanilla-style .json models work in v1.
+						Block shapes like cross (flowers, saplings), cube, vine, pane, stairs and so on are all defined by "elements" in the model or its parents, so no special cases are needed as long as the parent chain resolves. If a parent can't be found, show "Missing parent model: <name>" and render what's there.
+						Some vanilla models have no geometry in their .json and are drawn by the game's code instead: chests, beds, signs, banners, shulker boxes, skulls, and similar. These are v2, handled like entities.
+						Tinted textures: grass, leaves, vines and a few others are stored gray and colored by the game. When a face has a "tintindex", tint it with the plains biome colors (grass #91BD59, foliage #77AB2F).
+						Flat items: item models with parent "item/generated" or "item/handheld" are drawn the way the game draws them, as the sprite extruded one pixel deep (each opaque pixel becomes a thin block, edges included).
+						Blockbench .bbmodel (v2): use the embedded textures if present, otherwise the texture paths in the file.
+						GeckoLib .geo.json (v2): geometry only. Target GeckoLib 4 (the version in Cosmica), whose mods keep models at assets/<namespace>/geo/<name>.geo.json and textures at assets/<namespace>/textures/entity/<name>.png (sometimes in a subfolder). Find the texture by that convention, or a PNG with the same base name in the same folder. If none is found, ask the user to pick the texture with a second file picker. Animation files (.animation.json) are out of scope; models show in their default pose.
+					PNG files
+						Checked in this order:
+						1. Inside a resource folder? If the PNG sits under an assets/<namespace>/textures/ folder, search that resource folder's models for one that uses this texture, and open that model. Opening oak_log_top.png opens oak_log.json, with all its textures. If several models use it, prefer the one whose name matches the texture's name, otherwise the first match, and show "Used by several models, showing <name>". For textures/entity/ PNGs (v2), look for a GeckoLib model in that namespace's geo/ folder with the same name, then the entity model library (see Mobs and Other Entities).
+						2. Player skin? If it wasn't resolved above and its size is 64 x 64 or 64 x 32, load it onto the player model (see Player Skins).
+						3. Otherwise show "Unknown texture/model association."
+						Note: some vanilla mob textures, like zombie.png, are skin-shaped. Rule 1 runs first, so inside a resource folder they're treated as entities, and outside one they show on the player model. That's fine.
+					Resource folders
+						The user sets one or more resource folders in config.txt. Each is a folder that contains an "assets" folder, like an extracted vanilla Minecraft .jar, an unzipped resource pack, or an unzipped mod .jar. When several are listed, the first one with a matching file wins, like resource pack order in game.
+						If no resource folder is set, skins and standalone model files whose textures sit next to them still work. Anything else shows "No resource folder set - add one in config.txt."
+					Models
+						Player Skins
+							A player skin is a PNG of 64 x 64 (modern format, 1.8+) or 64 x 32 (legacy format, pre-1.8). Strange names, colors and pixel placement don't matter; only the size does. No learned recognition system is needed.
+							64 x 64: base layer and outer layer for every part.
+							64 x 32: legacy layout. The left arm and left leg reuse the right arm and right leg textures, mirrored, and only the head has an outer layer.
+							Classic vs slim (Alex) arms: in a 64 x 64 skin, if the pixels at x 54-55, y 20-31 (the unused strip of the right arm) are all fully transparent, use slim 3-pixel arms; otherwise classic 4-pixel arms. M toggles it manually in case the guess is wrong.
+							Test with the example skins in Owen's package (edit1.7.png is legacy, edit1.8.png is classic, edit1.8Alex.png is slim).
+						Blocks
+							See Model files above. Note that the intention is for the viewer to accept non-vanilla/modded blocks too.
+						Items
+							See Model files and Flat items above.
+						Mobs (v2)
+							Mob geometry isn't in Minecraft's assets; it's in the game's code. LamsEX gets it from Blockbench and GeckoLib files instead:
+							Opening a .bbmodel or .geo.json directly always works.
+							Entity model library: a folder (set in config.txt) of .bbmodel/.geo.json files, which the user exports from Blockbench's built-in vanilla entity models. LamsEX maps each one to its texture path (for example entity/zombie/zombie.png) so that opening a mob texture from a resource folder finds its model. A small mapping file in the library folder is fine; the format is up to you.
+							Many modded mobs already use GeckoLib, so their .geo.json files open directly, and unzipping a mod's .jar into a resource folder lets their textures find their models. Modded mobs drawn by code alone are out of scope unless someone recreates them in Blockbench.
+						Other Entities (v2)
+							Same as Mobs. Refers to things like boats, item frames, armor stands, chests, etc..
+				Background Color Control (Button 2) [label: the current color's name from config.txt]
+					Each click moves to the next background color in config.txt, looping back to the first after the last. The app starts on the first color in the list.
+					Brightness: Up Arrow lightens and Down Arrow darkens the current color. It changes the color's HSV value (brightness) on a 0-100 scale, by 1 per press, keeping hue and saturation. Holding a key repeats after a short delay (about 0.3 s) at about 30 steps per second, so a full sweep takes a few seconds. Switching colors resets brightness to that color's original value.
+					Example names and colors: "Void" - #000000, "Periwinkle" - #CCCCFF, "Cosmica" - #422718.
+		config.txt
+			Lives next to the app. If it's missing, LamsEX creates it with the defaults below. Lines starting with # are comments. Example:
+				# Background colors, in click order: name = hex
+				color Void = #000000
+				color Periwinkle = #CCCCFF
+				color Cosmica = #422718
+
+				# Resource folders, first match wins
+				resources = C:\Minecraft\extracted\1.20.1
+				# resources = C:\Minecraft\packs\MyPack
+
+				# Entity model library (v2)
+				entity_library = C:\Minecraft\entity_models
+
+				# Keys
+				key_brighter = ArrowUp
+				key_darker = ArrowDown
+				key_reset_all = Space
+				key_reset_rotation = Backspace
+				key_arm_type = M
+				key_screenshot = F2
+			The format is a suggestion; keep it easy to hand-edit. A bad line shows an error naming the line, and the rest of the file still loads.
+		Errors
+			Errors appear as one line of text at the bottom center of the window, in the button font, on a dark translucent strip, for about 4 seconds. They never block the app with a popup. A new error replaces the current one.
+			The model on screen stays as it was when something fails to load.
+			Messages: "Unknown file type.", "Unknown texture/model association.", "Missing texture: <path>" (that face draws plain gray), "Missing parent model: <name>", "Couldn't read <file>.", "Watched file was moved or deleted: <file>", "No resource folder set - add one in config.txt.", "config.txt line <n>: <problem>"
+		Animated textures
+			Textures with a .png.mcmeta animation file (water, lava, sea lanterns, prismarine, and others) play their animation using the frame order and frame time in the .mcmeta. Without a .mcmeta, a tall texture just shows as-is.
+
+Owen's LamsEX package (send along with this spec):
+	buttontemplate.png, buttonhover.png, buttonpress.png - button art
+	Volume Dealer font file
+	edit1.7.png, edit1.8.png, edit1.8Alex.png - example skins (legacy, classic, slim)
+	Mockup.png - the layout mockup (pink elements are labels only)
+	Controls.txt - the original LAMS controls
+	[OPEN] Owen: confirm the file names above match what you're sending, and add any of your own example skins.
+
+Original LAMS Controls.txt, for reference:
+	Cycle between skin types - M (Goes in the order of 1.8, 1.7, 1.8Alex)
+	Refresh skin - Spacebar
+	Rotate model - Left click and drag anywhere outside the model or on the body of the model
+	Pose limbs - Left click and drag on any limbs
+	Reset model rotation - Backspace
+	Zoom - scrollwheel
+	Reset zoom - Press down scrollwheel (AKA mouse button 3)
+	Darken background - 1
+	Lighten background - 2
+	Reset background color - 3
+	Screenshot - F2
+	Channel the spirit of XSSheep to get your cyan background - 4
