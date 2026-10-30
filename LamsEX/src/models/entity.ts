@@ -95,6 +95,7 @@ export function buildEntity(model: EModel, textures: (SceneTexture | null)[], fa
         g.position.set(n.origin[0] - parentOrigin[0], n.origin[1] - parentOrigin[1], n.origin[2] - parentOrigin[2]);
         g.rotation.copy(euler(n.rotation));
         g.userData.rest = g.quaternion.clone(); // what "reset poses" returns to
+        if (/head/i.test(n.name)) { g.userData.poseStyle = "head"; g.userData.front = -1; } // nods and turns, like LAMS
         parent.add(g);
         const poseable = isPoseable(n, topLevel);
         if (poseable && !parts.has(n.name)) parts.set(n.name, g);

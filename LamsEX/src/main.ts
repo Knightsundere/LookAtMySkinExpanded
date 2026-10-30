@@ -6,6 +6,7 @@ import { SceneTexture, parseMcmeta, missingTexture } from "./textures";
 import { Viewer } from "./viewer";
 import { Hud } from "./hud";
 import { EntityLibrary } from "./library";
+import { loadState, restoreWindow, updateState, type AppState } from "./appstate";
 import { buildSkin, guessSlim, skinFormat } from "./models/player";
 import { buildJsonModel, resolveModel, type ModelLoader } from "./models/blockmodel";
 import { buildEntity, dataUrlBytes, isBedrockGeometry, parseBbmodel, parseBedrock, type BbTexture } from "./models/entity";
@@ -34,7 +35,7 @@ let resources = new Resources([]);
 let library = new EntityLibrary(null);
 
 /** What is open, so live reload can rebuild it the same way. */
-interface Session { path: string; build: () => Promise<BuiltModel>; slim?: boolean }
+interface Session { path: string; build: () => Promise<BuiltModel>; slim?: boolean; texture?: string }
 let session: Session | null = null;
 
 // ---------- background ----------
@@ -242,11 +243,13 @@ async function bbTexture(t: BbTexture, bbPath: string, files: string[], warnings
   return null;
 }
 
-async function openGeo(path: string, fresh: boolean) {
+async function openGeo(path: string, fresh: boolean, savedTexture?: string) {
   let tex = await findGeoTexture(path);
+  // A texture picked by hand last time is reused when the model is reopened on launch.
+  if (!tex && savedTexture && (await platform.pathKind(savedTexture)) === "file") tex = savedTexture;
   if (!tex) tex = await platform.pickFile(`Pick the texture for ${baseName(path)}`, [{ name: "PNG texture", extensions: ["png"] }]);
   const ref: TexRef = tex ? { path: tex } : null;
-  await openSession({ path, build: () => buildEntityFile(path, ref) }, fresh);
+  await openSession({ path, texture: tex ?? undefined, build: () => buildEntityFile(path, ref) }, fresh);
 }
 
 /** Pick the model to open for a texture used by several. */
@@ -267,14 +270,14 @@ function chooseModel(texId: string, allUsers: string[]) {
   return users[0];
 }
 
-async function openPath(path: string, fresh = true) {
+async function openPath(path: string, fresh = true, savedTexture?: string) {
   const lower = path.toLowerCase();
   try {
     if (lower.endsWith(".png")) await openPng(path, fresh);
     else if (lower.endsWith(".bbmodel")) await openSession({ path, build: () => buildEntityFile(path, "auto") }, fresh);
     else if (lower.endsWith(".json")) {
       // Told apart by content: GeckoLib / Bedrock geometry or a Minecraft block/item model.
-      if (isBedrockGeometry(await readJson(path))) await openGeo(path, fresh);
+      if (isBedrockGeometry(await readJson(path))) await openGeo(path, fresh, savedTexture);
       else await openSession({ path, build: () => buildModelFile(path) }, fresh);
     } else throw new LoadError("Unknown file type.");
   } catch (e) {
@@ -331,6 +334,7 @@ async function openPng(path: string, fresh: boolean) {
 async function openSession(s: Session, fresh: boolean, note?: string) {
   const model = await s.build();
   session = s;
+  updateState({ model: { path: s.path, slim: s.slim, texture: s.texture } });
   viewer.setModel(model, !fresh);
   await watchCurrent(model.files);
   const messages = [...model.warnings, ...(note ? [note] : [])];
@@ -425,7 +429,11 @@ window.addEventListener("keydown", (e) => {
   if (keyMatches(e, k.reset_all)) { e.preventDefault(); viewer.resetAll(); }
   else if (keyMatches(e, k.reset_rotation)) { e.preventDefault(); viewer.resetRotation(); }
   else if (keyMatches(e, k.arm_type)) {
-    if (session?.slim !== undefined) { session.slim = !session.slim; void rebuild().catch((err) => showError(err.message)); }
+    if (session?.slim !== undefined) {
+      session.slim = !session.slim;
+      updateState({ model: { path: session.path, slim: session.slim } });
+      void rebuild().catch((err) => showError(err.message));
+    }
   } else if (keyMatches(e, k.screenshot)) { e.preventDefault(); void screenshot(); }
 });
 window.addEventListener("keyup", (e) => { if (e.code === repeatKey) stopRepeat(); });
@@ -455,9 +463,22 @@ async function pickModel() {
 // ---------- start ----------
 
 (async () => {
+  const saved = await loadState().catch(() => ({} as AppState));
+  await restoreWindow().catch(() => undefined);
   await hud.init();
   hud.setSlot(1, { label: "model", action: () => void pickModel() });
   await reloadConfig(true);
   viewer.requestRender();
   (window as unknown as { lamsOpen: (p: string) => Promise<void> }).lamsOpen = (p) => openPath(p);
+  // Reopen the model from last time, with its arm type.
+  const last = saved.model;
+  if (last && (await platform.pathKind(last.path)) === "file") {
+    await openPath(last.path, true, last.texture);
+    const cur = session as Session | null; // set by openPath above
+    if (cur && cur.path === last.path && last.slim !== undefined && cur.slim !== undefined && cur.slim !== last.slim) {
+      cur.slim = last.slim;
+      updateState({ model: { path: cur.path, slim: cur.slim } });
+      await rebuild().catch(() => undefined);
+    }
+  }
 })();

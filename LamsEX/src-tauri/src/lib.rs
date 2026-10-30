@@ -178,6 +178,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             app.manage(Mutex::new(WatchState::default()));
+            // The window starts hidden so the front end can restore its saved size first, then
+            // show it. Safety net: show it anyway after a few seconds if that never happens.
+            if let Some(win) = app.get_webview_window("main") {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_secs(3));
+                    let _ = win.show();
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

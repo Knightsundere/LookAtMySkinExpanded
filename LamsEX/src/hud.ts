@@ -15,6 +15,8 @@ const TEXT_BASELINE = 5; // native px from the bottom
 const TEXT_RIGHT = 5;
 const FONT_SIZE = 11; // native px
 const MIN_FONT_SIZE = 7;
+const DEFAULT_WINDOW_WIDTH = 1280; // CSS px; the size the button scale was first tuned at
+const BUTTON_SIZE = 0.8; // relative to that first size (Owen asked for about 20% smaller)
 
 export interface SlotSpec { label: string; action: () => void }
 
@@ -183,12 +185,18 @@ export class Hud {
 
   setSlot(slot: number, spec: SlotSpec | null) { this.buttons.get(slot)?.set(spec); }
 
+  /**
+   * One fixed button size, whatever the window size (Owen, 2026-10-30): 80% of the size the
+   * buttons had at the default 1280 px window, rounded to whole device pixels so they stay crisp.
+   * Only the screen's scaling (devicePixelRatio) changes it.
+   */
   private layout() {
     if (!this.arts) return;
     const dpr = window.devicePixelRatio || 1;
-    const quarter = (window.innerWidth * dpr) / 4;
-    let scale = 1;
-    while ((this.fullWidth + 2) * (scale + 1) <= quarter) scale++;
+    const quarter = (DEFAULT_WINDOW_WIDTH * dpr) / 4;
+    let fitted = 1;
+    while ((this.fullWidth + 2) * (fitted + 1) <= quarter) fitted++;
+    const scale = Math.max(1, Math.round(fitted * BUTTON_SIZE));
     const gap = `${(2 * scale) / dpr}px`;
     for (const col of [this.left, this.right]) {
       col.style.padding = gap;

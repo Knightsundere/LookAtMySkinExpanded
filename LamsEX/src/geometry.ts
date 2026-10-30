@@ -6,6 +6,9 @@ import type { SceneTexture } from "./textures";
 export type V3 = [number, number, number];
 export type UV = [number, number];
 
+/** How far (in texels) UVs are pulled inside each face. */
+const UV_INSET = 1 / 64;
+
 /** Collects textured quads. Corners are given TL, TR, BR, BL as seen from outside the face. */
 export class QuadBuilder {
   private pos: number[] = [];
@@ -20,9 +23,13 @@ export class QuadBuilder {
     const n = b.clone().sub(a).cross(d.clone().sub(a));
     const flip = n.dot(new THREE.Vector3(...normal)) < 0;
     const base = this.quads * 4;
+    // Pull each UV a hair toward the face's middle so edge samples never land on the
+    // neighbouring texel (which belongs to another face or part of the skin).
+    const cu = (uvs[0][0] + uvs[1][0] + uvs[2][0] + uvs[3][0]) / 4, cv = (uvs[0][1] + uvs[1][1] + uvs[2][1] + uvs[3][1]) / 4;
     for (let i = 0; i < 4; i++) {
       this.pos.push(...c[i]);
-      this.uv.push(uvs[i][0] / texW, uvs[i][1] / texH);
+      const u = uvs[i][0] + Math.sign(cu - uvs[i][0]) * UV_INSET, v = uvs[i][1] + Math.sign(cv - uvs[i][1]) * UV_INSET;
+      this.uv.push(u / texW, v / texH);
       this.col.push(...color);
     }
     if (flip) this.idx.push(base, base + 2, base + 1, base, base + 3, base + 2);
@@ -58,6 +65,10 @@ function alphaBandMaterial(tex: THREE.Texture, side: THREE.Side, translucent: bo
     depthWrite: !translucent,
   });
   m.onBeforeCompile = (shader) => {
+    // Centroid sampling: with antialiasing, edge samples otherwise read UVs from outside the
+    // triangle, i.e. pixels of the neighbouring skin area (stray dots along outer-layer edges).
+    shader.vertexShader = shader.vertexShader.replace("#include <uv_pars_vertex>", UV_PARS_VERTEX_CENTROID);
+    shader.fragmentShader = shader.fragmentShader.replace("#include <uv_pars_fragment>", UV_PARS_FRAGMENT_CENTROID);
     shader.fragmentShader = shader.fragmentShader.replace(
       "#include <alphatest_fragment>",
       translucent
@@ -68,6 +79,9 @@ function alphaBandMaterial(tex: THREE.Texture, side: THREE.Side, translucent: bo
   m.customProgramCacheKey = () => (translucent ? "lamsex-translucent" : "lamsex-opaque");
   return m;
 }
+
+const UV_PARS_VERTEX_CENTROID = THREE.ShaderChunk.uv_pars_vertex.replace("varying vec2 vMapUv;", "centroid varying vec2 vMapUv;");
+const UV_PARS_FRAGMENT_CENTROID = THREE.ShaderChunk.uv_pars_fragment.replace("varying vec2 vMapUv;", "centroid varying vec2 vMapUv;");
 
 export interface PickInfo {
   texture: SceneTexture;

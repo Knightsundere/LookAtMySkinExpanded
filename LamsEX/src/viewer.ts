@@ -219,15 +219,31 @@ export class Viewer {
     }, { passive: false });
   }
 
-  /** Rotate a part around the screen's axes (drag right = turn right, drag down = tip forward). */
+  /**
+   * Posing works like LookAtMySkin's ObjectRotator:
+   * - Heads nod around their own side-to-side axis and turn around the body's vertical axis,
+   *   so they never roll sideways.
+   * - Limbs swing in the screen plane (drag left/right) and toward or away from the viewer
+   *   (drag up/down). They never spin around their own length, so arms can't be turned inside out.
+   * Drags move the grabbed end of the part along with the mouse.
+   */
   private rotatePart(part: THREE.Object3D, dx: number, dy: number) {
     const rad = THREE.MathUtils.degToRad(DRAG_DEG_PER_PX);
-    const qWorld = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * rad)
-      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy * rad));
-    const parentQ = new THREE.Quaternion();
-    part.parent!.getWorldQuaternion(parentQ);
-    const local = parentQ.clone().invert().multiply(qWorld).multiply(parentQ);
-    part.quaternion.premultiply(local);
+    if (part.userData.poseStyle === "head") {
+      // Turn: around the parent's up axis. Nod: around the head's own x axis; entity models face -z,
+      // so their nod is reversed to keep "drag down = look down".
+      const front = part.userData.front ?? 1;
+      part.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * rad));
+      part.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy * rad * front));
+    } else {
+      // Screen axes: the camera looks down -z, so "into the screen" is z and "screen right" is x.
+      const qWorld = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), dx * rad)
+        .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy * rad));
+      const parentQ = new THREE.Quaternion();
+      part.parent!.getWorldQuaternion(parentQ);
+      const local = parentQ.clone().invert().multiply(qWorld).multiply(parentQ);
+      part.quaternion.premultiply(local);
+    }
     this.requestRender();
   }
 }

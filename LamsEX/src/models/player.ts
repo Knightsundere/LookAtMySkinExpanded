@@ -99,6 +99,7 @@ export function buildSkin(img: Rgba, slim: boolean, file: string): BuiltModel {
   for (const p of playerParts(format, slim)) {
     const pivot = new THREE.Group();
     pivot.name = p.name;
+    if (p.name === "head") pivot.userData.poseStyle = "head"; // nods and turns, like LAMS
     pivot.position.set(...p.pivot);
     root.add(pivot);
     const pick = { texture, part: p.poseable ? pivot : null };
