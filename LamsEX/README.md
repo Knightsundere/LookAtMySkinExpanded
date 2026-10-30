@@ -47,7 +47,7 @@ Keys can be remapped in `config.txt`.
   looked up in the entity library too.
 
 Dragging a bone poses it. Dragging a top-level bone that holds other bones, or one named
-like `body` / `root`, turns the whole model. Space puts bones back in their saved pose.
+like `body` / `root` (at any depth), turns the whole model. Space puts bones back in their saved pose.
 
 **Entity model library.** Set `entity_library =` in `config.txt` to a folder of `.bbmodel` /
 `.geo.json` files, for example exported from Blockbench's built-in vanilla entity models.
@@ -63,6 +63,11 @@ bed.bbmodel = entity/bed/red, block/red_bed, item/red_bed
 
 When a block or item model matches, it's shown with the first texture on its line. Editing
 this file updates the open model.
+
+Matching by name only looks at the texture's file name, so many vanilla textures need a
+line here: chests (`entity/chest/normal`), beds (`entity/bed/red`), cat and horse variants,
+villager professions and similar. Without one, LamsEX can't find the model, and a 64x64
+texture opens on the player model instead.
 
 ## Developing
 

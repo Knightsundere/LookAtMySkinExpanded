@@ -69,11 +69,12 @@ const BODY_NAMES = /^(body|root|main|base|torso|all|bb_main|everything|model)$/i
 
 /**
  * Bones you can drag to pose. Dragging a top-level bone that holds other bones, or one named
- * like a body/root, turns the whole model instead (that's what "drag on the body" means).
+ * like a body/root at any depth, turns the whole model instead (that's what "drag on the body" means).
  */
 function isPoseable(g: EGroup, topLevel: boolean) {
-  if (!topLevel) return true;
+  // Body-named bones turn the model at any depth: GeckoLib models often nest them (root > body > head, arms).
   if (BODY_NAMES.test(g.name)) return false;
+  if (!topLevel) return true;
   return !g.children.some((c) => c.kind === "group");
 }
 
@@ -209,7 +210,9 @@ export function parseBedrock(json: Record<string, unknown>): EModel {
         for (const [d, f] of Object.entries(c.uv) as [Dir, { uv: [number, number]; uv_size?: [number, number]; uv_rotation?: number }][]) {
           if (!f) continue;
           const [w, h] = f.uv_size ?? [0, 0];
-          faces[d] = { uv: [f.uv[0], f.uv[1], f.uv[0] + w, f.uv[1] + h], texture: 0, rotation: f.uv_rotation };
+          const uv: Uv4 = [f.uv[0], f.uv[1], f.uv[0] + w, f.uv[1] + h];
+          // Bedrock stores up/down face UVs the other way round; Blockbench swaps the corners on import too.
+          faces[d] = { uv: d === "up" || d === "down" ? [uv[2], uv[3], uv[0], uv[1]] : uv, texture: 0, rotation: f.uv_rotation };
         }
       }
       g.children.push({
@@ -236,12 +239,12 @@ export function parseBedrock(json: Record<string, unknown>): EModel {
 export interface BbTexture { name: string; source: string | null; path: string | null; relativePath: string | null }
 
 interface BbElement {
-  uuid: string; name?: string; type?: string;
+  uuid: string; name?: string; type?: string; export?: boolean;
   from?: V3; to?: V3; origin?: V3; rotation?: V3 | number; inflate?: number;
   box_uv?: boolean; uv_offset?: [number, number]; mirror_uv?: boolean;
   faces?: Partial<Record<Dir, { uv?: Uv4; texture?: number | string | null | false; rotation?: number }>>;
 }
-interface BbGroup { uuid?: string; name?: string; origin?: V3; rotation?: V3; children?: (string | BbGroup)[] }
+interface BbGroup { uuid?: string; name?: string; origin?: V3; rotation?: V3; export?: boolean; children?: (string | BbGroup)[] }
 
 export function parseBbmodel(json: Record<string, unknown>): { model: EModel; textures: BbTexture[] } {
   const meta = (json.meta ?? {}) as { model_format?: string; box_uv?: boolean };
@@ -273,6 +276,7 @@ export function parseBbmodel(json: Record<string, unknown>): { model: EModel; te
   const used = new Set<string>();
   const toCube = (e: BbElement): ECube | null => {
     used.add(e.uuid);
+    if (e.export === false) return null; // unticked "Export" in Blockbench: not part of the model
     if (e.type && e.type !== "cube") { if (e.type === "mesh") skippedMeshes = true; return null; }
     const from = e.from ?? [0, 0, 0], to = e.to ?? [0, 0, 0];
     const rot: V3 = Array.isArray(e.rotation) ? e.rotation : [0, 0, 0];
@@ -288,9 +292,15 @@ export function parseBbmodel(json: Record<string, unknown>): { model: EModel; te
     }
     return { kind: "cube", name: e.name ?? "cube", from, to, origin: e.origin ?? [0, 0, 0], rotation: rot, inflate: e.inflate ?? 0, faces };
   };
+  // A group left out of the export takes its contents with it.
+  const markUsed = (n: string | BbGroup): void => {
+    if (typeof n === "string") used.add(n);
+    else (n.children ?? []).forEach(markUsed);
+  };
   const toNode = (n: string | BbGroup): ENode | null => {
     if (typeof n === "string") { const e = elements.get(n); return e ? toCube(e) : null; }
     const info = { ...(n.uuid ? groupInfo.get(n.uuid) : undefined), ...n };
+    if (info.export === false) { markUsed(n); return null; }
     return {
       kind: "group",
       name: info.name ?? "group",

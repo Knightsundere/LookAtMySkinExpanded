@@ -250,9 +250,16 @@ async function openGeo(path: string, fresh: boolean) {
 }
 
 /** Pick the model to open for a texture used by several. */
-function chooseModel(texId: string, users: string[]) {
-  const texName = parseId(texId).path.split("/").pop()!;
+function chooseModel(texId: string, allUsers: string[]) {
+  const texPath = parseId(texId).path;
+  const texName = texPath.split("/").pop()!;
   const nameOf = (m: string) => parseId(m).path.split("/").pop()!;
+  // Models from the texture's own folder first: a block texture opens the block model, not the
+  // flat item model that reuses it (saplings, flowers, torches, panes...). Stable, so the
+  // resource-folder preference from modelsUsingTexture still holds within each group.
+  const folder = (p: string) => p.split("/")[0];
+  const other = (m: string) => Number(folder(parseId(m).path) !== folder(texPath));
+  const users = [...allUsers].sort((a, b) => other(a) - other(b));
   const exact = users.find((m) => nameOf(m) === texName);
   if (exact) return exact;
   const prefixed = users.filter((m) => texName.startsWith(nameOf(m))).sort((a, b) => nameOf(b).length - nameOf(a).length);
@@ -286,8 +293,8 @@ async function openPng(path: string, fresh: boolean) {
       const users = await resources.modelsUsingTexture(loc.id, loc.root);
       if (users.length) {
         const id = chooseModel(loc.id, users);
-        await openSession({ path, build: async () => { await resources.prepare(root); return buildModelId(id); } }, fresh);
-        if (users.length > 1) showError(`Used by several models, showing ${parseId(id).path.split("/").pop()}`);
+        const note = users.length > 1 ? `Used by several models, showing ${parseId(id).path.split("/").pop()}` : undefined;
+        await openSession({ path, build: async () => { await resources.prepare(root); return buildModelId(id); } }, fresh, note);
         return;
       }
     }
@@ -320,12 +327,14 @@ async function openPng(path: string, fresh: boolean) {
   throw new LoadError(!loc && !resources.hasConfigured ? "No resource folder set - add one in config.txt." : "Unknown texture/model association.");
 }
 
-async function openSession(s: Session, fresh: boolean) {
+/** `note` (e.g. "Used by several models...") is shown with the model's warnings rather than replacing them. */
+async function openSession(s: Session, fresh: boolean, note?: string) {
   const model = await s.build();
   session = s;
   viewer.setModel(model, !fresh);
   await watchCurrent(model.files);
-  if (model.warnings.length) showError(model.warnings[0] + (model.warnings.length > 1 ? ` (+${model.warnings.length - 1} more)` : ""));
+  const messages = [...model.warnings, ...(note ? [note] : [])];
+  if (messages.length) showError(messages[0] + (messages.length > 1 ? ` (+${messages.length - 1} more)` : ""));
 }
 
 async function rebuild(keepView = true) {
@@ -335,7 +344,7 @@ async function rebuild(keepView = true) {
   if (session !== s) return;
   viewer.setModel(model, keepView);
   await watchCurrent(model.files);
-  if (model.warnings.length) showError(model.warnings[0]);
+  if (model.warnings.length) showError(model.warnings[0] + (model.warnings.length > 1 ? ` (+${model.warnings.length - 1} more)` : ""));
 }
 
 // ---------- live updating ----------

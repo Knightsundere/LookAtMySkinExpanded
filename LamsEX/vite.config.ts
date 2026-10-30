@@ -23,6 +23,13 @@ function devFsBridge(): Plugin {
     apply: "serve",
     configureServer(server) {
       server.middlewares.use("/__devfs", (req, res) => {
+        // Only the app's own page may use the bridge. Without this, any website open in the
+        // browser could send a plain cross-origin POST here and write files anywhere on disk.
+        const site = req.headers["sec-fetch-site"];
+        const origin = req.headers.origin;
+        if ((site && site !== "same-origin") || (origin && origin !== `http://${req.headers.host}`)) {
+          res.statusCode = 403; res.end("forbidden"); return;
+        }
         const url = new URL(req.url ?? "", "http://x");
         const op = url.pathname.slice(1);
         const p = url.searchParams.get("path") ?? "";
