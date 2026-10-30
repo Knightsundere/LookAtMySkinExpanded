@@ -1,5 +1,5 @@
-// Entity model library: a folder (config.txt "entity_library") of .bbmodel / .geo.json files,
-// e.g. exported from Blockbench's built-in vanilla entity models.
+// Entity model library: a folder (config.txt "entity_library") of .bbmodel / .geo.json / .jem files,
+// e.g. exported from Blockbench's built-in vanilla entity models, or EMF's "Export models" tool.
 //
 // Matching is by name: a texture or a code-drawn model called "zombie" finds zombie.bbmodel
 // (or zombie.geo.json). For anything else, an optional "lamsex-library.txt" in the folder lists
@@ -25,8 +25,13 @@ export interface LibraryMatch {
 
 interface Line { file: string; textures: string[]; models: string[] }
 
-const isModelFile = (f: string) => /\.(bbmodel|geo\.json)$/i.test(f);
-const stem = (f: string) => baseName(f).replace(/\.(bbmodel|geo\.json)$/i, "").toLowerCase();
+const isModelFile = (f: string) => /\.(bbmodel|geo\.json|jem)$/i.test(f);
+const stem = (f: string) => baseName(f).replace(/\.(bbmodel|geo\.json|jem)$/i, "").toLowerCase();
+/** Same-name files; one inside a folder named after the namespace (e.g. EMF's export/<modid>/) first. */
+const byName = (files: string[], name: string, ns: string) => {
+  const hits = files.filter((f) => stem(f) === name);
+  return hits.find((f) => toSlash(f).toLowerCase().includes(`/${ns.toLowerCase()}/`)) ?? hits[0];
+};
 
 export class EntityLibrary {
   constructor(readonly dir: string | null) {}
@@ -64,7 +69,7 @@ export class EntityLibrary {
     const line = lines.find((l) => l.textures.includes(id));
     if (line) return { match: { file: line.file, textureId: id }, errors };
     const name = parseId(id).path.split("/").pop()!.toLowerCase();
-    const file = files.find((f) => stem(f) === name);
+    const file = byName(files, name, parseId(id).ns);
     return { match: file ? { file, textureId: id } : null, errors };
   }
 
@@ -75,7 +80,7 @@ export class EntityLibrary {
     const line = lines.find((l) => l.models.includes(id));
     if (line) return { match: { file: line.file, textureId: line.textures[0] ?? null }, errors };
     const name = parseId(id).path.split("/").pop()!.toLowerCase();
-    const file = files.find((f) => stem(f) === name);
+    const file = byName(files, name, parseId(id).ns);
     return { match: file ? { file, textureId: null } : null, errors };
   }
 }

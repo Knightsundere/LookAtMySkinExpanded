@@ -335,3 +335,76 @@ export function dataUrlBytes(url: string): Uint8Array {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+
+// ---------------- OptiFine CEM .jem (as exported by Entity Model Features) ----------------
+// Read the same way Blockbench imports .jem files, so models look the same as in Blockbench.
+
+interface JemBox {
+  coordinates?: number[]; textureOffset?: [number, number]; sizeAdd?: number;
+  uvNorth?: Uv4; uvEast?: Uv4; uvSouth?: Uv4; uvWest?: Uv4; uvUp?: Uv4; uvDown?: Uv4;
+}
+interface JemPart {
+  part?: string; id?: string; comment?: string; translate?: V3; rotate?: V3; mirrorTexture?: string;
+  boxes?: JemBox[]; submodels?: JemPart[]; submodel?: JemPart;
+}
+
+/** True for a .jem file's JSON: a "models" list of parts. */
+export function isJem(j: unknown): boolean {
+  return !!j && typeof j === "object" && Array.isArray((j as { models?: unknown }).models)
+    && (j as { models: unknown[] }).models.some((m) => !!m && typeof m === "object" && ("part" in m || "boxes" in m || "submodels" in m));
+}
+
+/** Parses a .jem; `texture` is the file's own texture reference, if it names one. */
+export function parseJem(json: Record<string, unknown>): { model: EModel; texture: string | null } {
+  const size = Array.isArray(json.textureSize) ? (json.textureSize as number[]) : [64, 32];
+  const tw = Number(size[0]) || 64, th = Number(size[1]) || 32;
+  const sub = (p: JemPart): JemPart[] => [...(p.submodels ?? []), ...(p.submodel ? [p.submodel] : [])];
+  let skipped = false;
+
+  const cube = (box: JemBox, name: string, offset: V3, mirror: boolean): ECube | null => {
+    const c = box.coordinates;
+    if (!c || c.length < 6) return null;
+    const from: V3 = [c[0] + offset[0], c[1] + offset[1], c[2] + offset[2]];
+    const to: V3 = [from[0] + c[3], from[1] + c[4], from[2] + c[5]];
+    let faces: Partial<Record<Dir, EFace>>;
+    if (box.textureOffset) {
+      const uv = boxUvFaces(box.textureOffset[0], box.textureOffset[1], [c[3], c[4], c[5]].map(Math.floor) as V3, mirror);
+      faces = Object.fromEntries(Object.entries(uv).map(([d, f]) => [d, { uv: f, texture: 0 }]));
+    } else {
+      const per: Record<Dir, Uv4 | undefined> = { north: box.uvNorth, east: box.uvEast, south: box.uvSouth, west: box.uvWest, up: box.uvUp, down: box.uvDown };
+      faces = {};
+      for (const [d, uv] of Object.entries(per) as [Dir, Uv4 | undefined][]) if (uv) faces[d] = { uv, texture: 0 };
+      if (Object.keys(faces).length === 0) { skipped = true; return null; }
+    }
+    return { kind: "cube", name, from, to, origin: [0, 0, 0], rotation: [0, 0, 0], inflate: box.sizeAdd ?? 0, faces };
+  };
+
+  // Children of a part: boxes (offset by the part's pivot below the top level) and submodels.
+  const content = (p: JemPart, group: EGroup, depth: number, top: boolean) => {
+    const mirror = !!p.mirrorTexture?.includes("u");
+    for (const b of p.boxes ?? []) {
+      const c = cube(b, group.name, top ? [0, 0, 0] : group.origin, mirror);
+      if (c) group.children.push(c);
+    }
+    sub(p).forEach((s, i) => {
+      let origin: V3 = s.translate ? [...s.translate] as V3 : depth >= 1 ? [...group.origin] as V3 : [0, 0, 0];
+      if (depth >= 1 && s.translate) origin = [origin[0] + group.origin[0], origin[1] + group.origin[1], origin[2] + group.origin[2]];
+      const g: EGroup = { kind: "group", name: s.id || s.comment || `${group.name}_sub_${i}`, origin, rotation: s.rotate ?? [0, 0, 0], children: [] };
+      group.children.push(g);
+      content(s, g, depth + 1, false);
+    });
+  };
+
+  const roots: ENode[] = [];
+  for (const p of (json.models as JemPart[]).filter((m) => m && typeof m === "object")) {
+    const t = p.translate ?? [0, 0, 0];
+    const g: EGroup = { kind: "group", name: p.part ?? p.id ?? "part", origin: [-t[0], -t[1], -t[2]], rotation: p.rotate ?? [0, 0, 0], children: [] };
+    roots.push(g);
+    content(p, g, 0, true);
+  }
+  const warnings = skipped ? ["Some boxes have no texture mapping and are hidden."] : [];
+  return {
+    model: { roots, uvSize: () => [tw, th], style: "entity", guiRotation: null, warnings },
+    texture: typeof json.texture === "string" ? json.texture : null,
+  };
+}

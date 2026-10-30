@@ -51,7 +51,14 @@ Dragging a bone poses it. Dragging a top-level bone that holds other bones, or o
 like `body` / `root` (at any depth), turns the whole model. Space puts bones back in their saved pose.
 
 **Entity model library.** Set `entity_library =` in `config.txt` to a folder of `.bbmodel` /
-`.geo.json` files, for example exported from Blockbench's built-in vanilla entity models.
+`.geo.json` / `.jem` files, for example exported from Blockbench's built-in vanilla entity models.
+
+The quickest way to fill it for a whole modlist is the Entity Model Features (EMF) mod: in a
+game instance with the modlist installed, open EMF's settings, go to Tools, and set **Export
+models** to export all models. Leave the settings screen, let the resources reload, then point
+`entity_library =` at `.minecraft/emf/export`. That covers vanilla mobs and modded mobs drawn by
+code (GeckoLib mobs already work from their `.geo.json`). `.jem` files can also be opened
+directly; their texture comes from the file, a same-name PNG beside it, or a file picker.
 Files match by name: `zombie.png` finds `zombie.bbmodel`. For anything else, add a
 `lamsex-library.txt` to that folder, one pairing per line:
 

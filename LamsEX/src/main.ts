@@ -10,7 +10,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { loadState, restoreWindow, updateState, type AppState } from "./appstate";
 import { buildSkin, guessSlim, skinFormat } from "./models/player";
 import { buildJsonModel, resolveModel, type ModelLoader } from "./models/blockmodel";
-import { buildEntity, dataUrlBytes, isBedrockGeometry, parseBbmodel, parseBedrock, type BbTexture } from "./models/entity";
+import { buildEntity, dataUrlBytes, isBedrockGeometry, isJem, parseBbmodel, parseBedrock, parseJem, type BbTexture } from "./models/entity";
 import type { BuiltModel } from "./models/common";
 
 // ---------- errors ----------
@@ -199,7 +199,25 @@ async function findGeoForTexture(root: string, ns: string, sub: string): Promise
   return hit ? joinPath(geoDir, hit) : null;
 }
 
-/** Builds a .bbmodel or .geo.json. "auto" = the model's own / conventional texture. */
+/** A .jem's texture: the file it names (in a resource folder, or relative to the .jem), else a same-name PNG beside it. */
+async function findJemTexture(jemPath: string, texture: string | null): Promise<string | null> {
+  const candidates: string[] = [];
+  if (texture) {
+    const { ns, path } = parseId(texture.replace(/\\/g, "/"));
+    const rel = /\.png$/i.test(path) ? path : path + ".png";
+    const sub = rel.replace(/^textures\//i, "");
+    if (/^textures\//i.test(rel)) {
+      const found = await resources.readTexture(`${ns}:${sub.replace(/\.png$/i, "")}`);
+      if (found?.realPath) return found.realPath;
+    }
+    candidates.push(joinPath(dirName(jemPath), rel), joinPath(dirName(jemPath), baseName(rel)));
+  }
+  candidates.push(joinPath(dirName(jemPath), baseName(jemPath).replace(/\.jem$/i, ".png")));
+  for (const p of candidates) if ((await platform.pathKind(p)) === "file") return p;
+  return null;
+}
+
+/** Builds a .bbmodel, .geo.json or .jem. "auto" = the model's own / conventional texture. */
 async function buildEntityFile(file: string, tex: TexRef | "auto", extraFiles: string[] = []): Promise<BuiltModel> {
   const json = await readJson(file);
   const files = [file, ...extraFiles];
@@ -211,6 +229,16 @@ async function buildEntityFile(file: string, tex: TexRef | "auto", extraFiles: s
     const loaded = await loadTexRef(ref);
     if (loaded?.file) files.push(loaded.file);
     if (!loaded) warnings.push(`Missing texture: ${ref && "id" in ref ? ref.id : geoName(file) + ".png"}`);
+    return buildEntity(model, [loaded?.texture ?? null], missingTexture(), files, warnings);
+  }
+  if (isJem(json)) {
+    const { model, texture } = parseJem(json);
+    const warnings = [...model.warnings];
+    let ref: TexRef = tex === "auto" ? null : tex;
+    if (tex === "auto") { const p = await findJemTexture(file, texture); ref = p ? { path: p } : null; }
+    const loaded = await loadTexRef(ref);
+    if (loaded?.file) files.push(loaded.file);
+    if (!loaded) warnings.push(`Missing texture: ${ref && "id" in ref ? ref.id : texture ?? baseName(file).replace(/\.jem$/i, ".png")}`);
     return buildEntity(model, [loaded?.texture ?? null], missingTexture(), files, warnings);
   }
   if (json && typeof json === "object" && (json.meta || json.outliner || json.elements)) {
@@ -245,7 +273,8 @@ async function bbTexture(t: BbTexture, bbPath: string, files: string[], warnings
 }
 
 async function openGeo(path: string, fresh: boolean, savedTexture?: string) {
-  let tex = await findGeoTexture(path);
+  const lower = path.toLowerCase();
+  let tex = lower.endsWith(".jem") ? await findJemTexture(path, parseJem(await readJson(path)).texture) : await findGeoTexture(path);
   // A texture picked by hand last time is reused when the model is reopened on launch.
   if (!tex && savedTexture && (await platform.pathKind(savedTexture)) === "file") tex = savedTexture;
   if (!tex) tex = await platform.pickFile(`Pick the texture for ${baseName(path)}`, [{ name: "PNG texture", extensions: ["png"] }]);
@@ -276,6 +305,10 @@ async function openPath(path: string, fresh = true, savedTexture?: string) {
   try {
     if (lower.endsWith(".png")) await openPng(path, fresh);
     else if (lower.endsWith(".bbmodel")) await openSession({ path, build: () => buildEntityFile(path, "auto") }, fresh);
+    else if (lower.endsWith(".jem")) {
+      if (!isJem(await readJson(path))) throw new LoadError("Unknown file type.");
+      await openGeo(path, fresh, savedTexture);
+    }
     else if (lower.endsWith(".json")) {
       // Told apart by content: GeckoLib / Bedrock geometry or a Minecraft block/item model.
       if (isBedrockGeometry(await readJson(path))) await openGeo(path, fresh, savedTexture);
@@ -455,7 +488,7 @@ async function screenshot() {
 
 async function pickModel() {
   const path = await platform.pickFile("Open model or texture", [
-    { name: "Models and textures", extensions: ["png", "json", "bbmodel"] },
+    { name: "Models and textures", extensions: ["png", "json", "bbmodel", "jem"] },
     { name: "All files", extensions: ["*"] },
   ]);
   if (path) await openPath(path);
