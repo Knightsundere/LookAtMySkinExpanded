@@ -2,7 +2,7 @@ Hello! This is a spec prepared by Owen, potentially for use by an agent/Claude w
 
 Rules:
 	Memory: If you have a local memory, check it before building for anything Antoine has set up for you, like token-saving preferences. If you don't have one, tell Antoine he should set one up, and that he is silly, please.
-	Review first: Before building, go over any concerns, gaps in information, questions, or ideas for a better approach with Antoine (and Owen, via Antoine). Items marked [OPEN] below are choices Owen hasn't made yet. Ask about them instead of guessing.
+	Review first: Before building, go over any concerns, gaps in information, questions, or ideas for a better approach with Antoine (and Owen, via Antoine). If something isn't covered here, ask instead of guessing.
 	Assets: Do not generate new images, audio, animations, or other creative assets. Use the files Owen provides (see "Owen's LamsEX package") and the Minecraft assets the user points the app at. Visual effects done in code (dimming a disabled button, tinting grass) are fine.
 	Minecraft's own assets can't be shipped with the app. The user extracts them from their own copy of the game (see "Resource folders").
 
@@ -13,7 +13,8 @@ Phases:
 	Build in this order. Each phase should be a working app on its own.
 	v1 - Player skins, blocks, and items. Live updating, alpha support, the HUD, Model button, Background Color Control, config.txt.
 	v2 - Mobs and other entities, through Blockbench (.bbmodel) and GeckoLib (.geo.json) model files. Includes modded entities that use those formats.
-	v3 - Custom Player Models support.
+	Later, not planned yet - Custom Player Models support. Don't build it, but don't make choices that would rule it out (for example, keep the player model built from a list of parts rather than hard-coded).
+	Target: the main modlist this is for (Cosmica) is Minecraft 1.20.1 on Fabric, with GeckoLib 4. Vanilla assets should come from 1.20.1, and newer versions are a bonus, not a requirement.
 
 
 Feature list:
@@ -41,15 +42,12 @@ Feature list:
 					Wait about 150 ms after a change before reloading, and retry once if the file is still being written. If a watched file is deleted or renamed, keep showing the last good version and show an error (see Errors).
 				Expanded Viewing
 					Model viewing beyond Minecraft player skins should be possible, including, but not limited to, blocks, entities, mobs, items, or other custom models within the scope of complexity as is standard in Minecraft (high-polygon-count models need not be supported, you have discretion on where that number lies and what considerations are made surrounding it). Details are in the Model button section below.
-				Custom Player Models (v3)
-					Custom player model features (such as halfskirts, larger hair, tails, ears, etc.) would ideally be compatible/adjustable in the viewer the same as any other player model part - these are based on the Custom Player Models mod, git here -> https://github.com/tom5454/CustomPlayerModels .
-					CPM models aren't stored in a plain PNG. They live in a .cpmproject file, or are encoded into the skin image itself.
-					[OPEN] Which one should LamsEX load: .cpmproject files, the data encoded in the skin, or both?
+				Custom Player Models (later, skip for now)
+					Custom player model features (such as halfskirts, larger hair, tails, ears, etc.) would ideally be compatible/adjustable in the viewer the same as any other player model part some day - these are based on the Custom Player Models mod, git here -> https://github.com/tom5454/CustomPlayerModels . Not part of v1 or v2.
 		HUD
 			Window
 				The app opens in a normal resizable window, default 1280 x 720, minimum 800 x 600. The black area is the 3D view and fills the whole window. Buttons sit on top of it.
-				The blue-gray bar across the top of the mockup is the window's title bar.
-				[OPEN] Is that a normal Windows title bar, or a custom one in that blue-gray color (#93A8C3 or so)? Default if not answered: normal Windows title bar.
+				The blue-gray bar across the top of the mockup is the window's title bar. Use the normal Windows title bar, not a custom one.
 				The pink numbers and border in the mockup are only labels for this spec, not part of the design.
 			Model Viewing
 				The Model should be viewable/positioned in the exact center of the screen (reference mockup for intended approx. location). Manipulation of the model regarding zoom, rotation, model part rotation/manipulation, and position resetting should be referenced from the original LookAtMySkin software for feel and functionality.
@@ -66,16 +64,18 @@ Feature list:
 				Buttons are numbered 1-4 on the left, and 5-8 on the right, referring to their slots (not to their visual text). They sit in the top corners just below the title bar, stacked as in the mockup.
 				Look: button texture is buttontemplate.png, hover is buttonhover.png, press is buttonpress.png (see Owen's LamsEX package). Slice them into a left edge, a stretchable middle, and a right edge, so a button can be any width without stretching its bevels.
 				Label: text color #2F2F35, font = Volume Dealer (https://fontesk.com/volume-dealer-font/, font file in Owen's package), lowercase like the mockup, offset to the bottom left of the button with margins shown in the mockup image.
-				Width: [OPEN] Should each button be as wide as its label needs (so Button 2 changes width as the color name changes), or should all buttons share one fixed width that fits the longest label? The mockup's different widths for 3-8 are [OPEN] too: intentional design, or placeholders? Default if not answered: one fixed width for all buttons, wide enough for the longest label in config.txt.
+				Size: each slot has a fixed size, matching the mockup. All buttons are the same height. There are three widths:
+					Slots 1, 2, 5, 6 - full width (about 2.8 times as wide as it is tall, per the mockup)
+					Slots 3, 7 - about 92% of full width
+					Slots 4, 8 - about 64% of full width
+					Left buttons line up on their left edge; right buttons line up on their right edge. The sizes don't change with the label. If a label is too long for its button (for example a long color name on Button 2), shrink the text to fit, down to a readable minimum, then cut it off with "...".
 				Scaling: draw the button art at a whole-number pixel scale (2x, 3x, ...) so the pixels stay crisp. Pick the largest scale where the buttons take up no more than about a quarter of the window width per side. Recalculate when the window resizes.
 				States: when the cursor enters the button's exact pixel area (ignore fully transparent pixels of the art), the button uses the hover look. While the mouse is held down on it, the button uses the press look. On release it returns to normal and runs its action.
-				Buttons with no function yet (currently 3-8) are shown at 40% opacity with no label, ignore the cursor, and do nothing.
-				[OPEN] Or should unused buttons be hidden completely until they have a function?
+				Buttons with no function yet (currently 3-8) are hidden completely. Their slots stay reserved at the sizes above, because they'll get functions later.
 				Model button (Button 1) [label: "model"]
 					Opens a file picker. Accepted file types:
 						v1: .png (textures and skins), .json (Minecraft block and item models)
 						v2: .bbmodel (Blockbench), .geo.json (GeckoLib / Bedrock geometry)
-						v3: CPM file type, per the [OPEN] question above
 					Any other file type shows the error "Unknown file type."
 					LamsEX tells files apart by their contents and format, not by a list of known file names. There is no whitelist.
 					Model files (.json, .bbmodel, .geo.json)
@@ -86,10 +86,10 @@ Feature list:
 						Tinted textures: grass, leaves, vines and a few others are stored gray and colored by the game. When a face has a "tintindex", tint it with the plains biome colors (grass #91BD59, foliage #77AB2F).
 						Flat items: item models with parent "item/generated" or "item/handheld" are drawn the way the game draws them, as the sprite extruded one pixel deep (each opaque pixel becomes a thin block, edges included).
 						Blockbench .bbmodel (v2): use the embedded textures if present, otherwise the texture paths in the file.
-						GeckoLib .geo.json (v2): geometry only, so also look for a PNG with the same base name in the same folder (or the matching textures/entity folder in the resource folders). If none is found, ask the user to pick the texture with a second file picker.
+						GeckoLib .geo.json (v2): geometry only. Target GeckoLib 4 (the version in Cosmica), whose mods keep models at assets/<namespace>/geo/<name>.geo.json and textures at assets/<namespace>/textures/entity/<name>.png (sometimes in a subfolder). Find the texture by that convention, or a PNG with the same base name in the same folder. If none is found, ask the user to pick the texture with a second file picker. Animation files (.animation.json) are out of scope; models show in their default pose.
 					PNG files
 						Checked in this order:
-						1. Inside a resource folder? If the PNG sits under an assets/<namespace>/textures/ folder, search that resource folder's models for one that uses this texture, and open that model. Opening oak_log_top.png opens oak_log.json, with all its textures. If several models use it, prefer the one whose name matches the texture's name, otherwise the first match, and show "Used by several models, showing <name>". For textures/entity/ PNGs (v2), look up the entity model library (see Mobs and Other Entities).
+						1. Inside a resource folder? If the PNG sits under an assets/<namespace>/textures/ folder, search that resource folder's models for one that uses this texture, and open that model. Opening oak_log_top.png opens oak_log.json, with all its textures. If several models use it, prefer the one whose name matches the texture's name, otherwise the first match, and show "Used by several models, showing <name>". For textures/entity/ PNGs (v2), look for a GeckoLib model in that namespace's geo/ folder with the same name, then the entity model library (see Mobs and Other Entities).
 						2. Player skin? If it wasn't resolved above and its size is 64 x 64 or 64 x 32, load it onto the player model (see Player Skins).
 						3. Otherwise show "Unknown texture/model association."
 						Note: some vanilla mob textures, like zombie.png, are skin-shaped. Rule 1 runs first, so inside a resource folder they're treated as entities, and outside one they show on the player model. That's fine.
@@ -111,7 +111,7 @@ Feature list:
 							Mob geometry isn't in Minecraft's assets; it's in the game's code. LamsEX gets it from Blockbench and GeckoLib files instead:
 							Opening a .bbmodel or .geo.json directly always works.
 							Entity model library: a folder (set in config.txt) of .bbmodel/.geo.json files, which the user exports from Blockbench's built-in vanilla entity models. LamsEX maps each one to its texture path (for example entity/zombie/zombie.png) so that opening a mob texture from a resource folder finds its model. A small mapping file in the library folder is fine; the format is up to you.
-							Many modded mobs already use GeckoLib, so their .geo.json files open directly. Modded mobs drawn by code alone are out of scope unless someone recreates them in Blockbench.
+							Many modded mobs already use GeckoLib, so their .geo.json files open directly, and unzipping a mod's .jar into a resource folder lets their textures find their models. Modded mobs drawn by code alone are out of scope unless someone recreates them in Blockbench.
 						Other Entities (v2)
 							Same as Mobs. Refers to things like boats, item frames, armor stands, chests, etc..
 				Background Color Control (Button 2) [label: the current color's name from config.txt]
@@ -126,7 +126,7 @@ Feature list:
 				color Cosmica = #422718
 
 				# Resource folders, first match wins
-				resources = C:\Minecraft\extracted\1.21
+				resources = C:\Minecraft\extracted\1.20.1
 				# resources = C:\Minecraft\packs\MyPack
 
 				# Entity model library (v2)
@@ -154,14 +154,6 @@ Owen's LamsEX package (send along with this spec):
 	Mockup.png - the layout mockup (pink elements are labels only)
 	Controls.txt - the original LAMS controls
 	[OPEN] Owen: confirm the file names above match what you're sending, and add any of your own example skins.
-
-Open questions for Owen (answer these, or let Antoine's Claude ask):
-	1. Custom Player Models: load .cpmproject files, data encoded in the skin, or both?
-	2. Title bar: normal Windows title bar, or custom blue-gray?
-	3. Button width: fits each label, or one shared width? Are the different widths of 3-8 in the mockup intentional?
-	4. Unused buttons: dimmed or hidden?
-	5. Cosmica modlist: which Minecraft version and mod loader, and does it use GeckoLib? This decides how much of the modded content works in v2.
-
 
 Original LAMS Controls.txt, for reference:
 	Cycle between skin types - M (Goes in the order of 1.8, 1.7, 1.8Alex)
