@@ -37,7 +37,7 @@ export async function restoreWindow() {
   const win = getCurrentWindow();
   try {
     const w = state.window;
-    if (w && w.width >= 200 && w.height >= 150) {
+    if (w && w.width >= 100 && w.height >= 100) {
       await win.setSize(new LogicalSize(w.width, w.height));
       await win.center();
       if (w.maximized) await win.maximize();
@@ -49,7 +49,7 @@ export async function restoreWindow() {
     const maximized = await win.isMaximized();
     if (maximized) { updateState({ window: { ...(state.window ?? { width: 1280, height: 720 }), maximized } }); return; }
     const size = (await win.innerSize()).toLogical(await win.scaleFactor());
-    if (size.width < 200 || size.height < 150) return; // minimized
+    if (size.width < 100 || size.height < 100) return; // minimized
     updateState({ window: { width: Math.round(size.width), height: Math.round(size.height), maximized: false } });
   });
 }
