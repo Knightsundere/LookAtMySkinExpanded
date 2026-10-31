@@ -31,7 +31,14 @@ First match wins, like resource pack order. A PNG you open from inside a folder 
 | Background brighter / darker | Up / Down (hold to sweep) |
 | Screenshot (3D view only) | F2 |
 
+| Stay on top over Paint.NET: pause / resume | T |
+
 Keys can be remapped in `config.txt`.
+
+**Floating over Paint.NET.** While Paint.NET is the active window, LamsEX stays on top of it, so
+you can paint and watch the model at the same time. Clicking into LamsEX keeps it on top;
+switching to any other program lets it drop behind as normal. Set `on_top_with =` in
+`config.txt` to other programs' exe names (comma-separated) or to `none` to turn it off.
 
 **Higher-resolution textures (e.g. 24x).** UVs stay in the model's own units (0-16 for blocks
 and items, the declared texture size for entities) and are scaled to whatever size the PNG

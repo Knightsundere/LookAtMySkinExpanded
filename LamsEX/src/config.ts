@@ -8,10 +8,12 @@ export interface Config {
   colors: BgColor[];
   resources: string[];
   entityLibrary: string | null;
+  /** Programs (exe names) that LamsEX floats over while they're in front. Empty = off. */
+  onTopWith: string[];
   keys: Record<KeyAction, string>;
 }
 
-export type KeyAction = "brighter" | "darker" | "reset_all" | "reset_rotation" | "arm_type" | "screenshot";
+export type KeyAction = "brighter" | "darker" | "reset_all" | "reset_rotation" | "arm_type" | "screenshot" | "on_top";
 
 const DEFAULT_KEYS: Record<KeyAction, string> = {
   brighter: "ArrowUp",
@@ -20,7 +22,10 @@ const DEFAULT_KEYS: Record<KeyAction, string> = {
   reset_rotation: "Backspace",
   arm_type: "M",
   screenshot: "F2",
+  on_top: "T",
 };
+
+const DEFAULT_ON_TOP_WITH = ["paintdotnet.exe"];
 
 export const DEFAULT_CONFIG_TEXT = `# LamsEX settings. Lines starting with # are comments.
 
@@ -38,6 +43,12 @@ color Cosmica = #422718
 # Entity model library (v2)
 # entity_library = C:\\Minecraft\\entity_models
 
+# Stay on top of the screen while one of these programs is the active window,
+# so you can paint and watch the model at once. Clicking into LamsEX keeps it on
+# top; switching to any other program lets it go behind again. Comma-separated
+# exe names; "none" turns it off. Key T (key_on_top) switches it off/on for now.
+on_top_with = paintdotnet.exe
+
 # Keys (names as in the browser KeyboardEvent: ArrowUp, Space, Backspace, M, F2, ...)
 key_brighter = ArrowUp
 key_darker = ArrowDown
@@ -45,10 +56,11 @@ key_reset_all = Space
 key_reset_rotation = Backspace
 key_arm_type = M
 key_screenshot = F2
+key_on_top = T
 `;
 
 export function parseConfig(text: string): { config: Config; errors: string[] } {
-  const config: Config = { colors: [], resources: [], entityLibrary: null, keys: { ...DEFAULT_KEYS } };
+  const config: Config = { colors: [], resources: [], entityLibrary: null, onTopWith: [...DEFAULT_ON_TOP_WITH], keys: { ...DEFAULT_KEYS } };
   const errors: string[] = [];
   text.split(/\r?\n/).forEach((raw, i) => {
     const line = raw.trim();
@@ -70,6 +82,11 @@ export function parseConfig(text: string): { config: Config; errors: string[] } 
       else config.resources.push(stripQuotes(value));
     } else if (lower === "entity_library") {
       config.entityLibrary = stripQuotes(value) || null;
+    } else if (lower === "on_top_with") {
+      const v = value.toLowerCase();
+      config.onTopWith = v === "" || v === "none" || v === "off"
+        ? []
+        : value.split(",").map((x) => stripQuotes(x.trim())).filter(Boolean);
     } else if (lower.startsWith("key_")) {
       const action = lower.slice(4) as KeyAction;
       if (!(action in DEFAULT_KEYS)) errors.push(`config.txt line ${n}: unknown key setting "${left}"`);

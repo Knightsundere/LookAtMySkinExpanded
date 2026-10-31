@@ -15,6 +15,8 @@ export interface Platform {
   readAllModels(root: string): Promise<[string, string][]>;
   watchFiles(paths: string[]): Promise<void>;
   onFileChange(cb: (path: string) => void): void;
+  /** Float over these programs while they're in front (Windows desktop app only). */
+  setOnTopWith(names: string[]): Promise<void>;
   pickFile(title: string, filters: { name: string; extensions: string[] }[]): Promise<string | null>;
 }
 
@@ -33,6 +35,7 @@ const tauriPlatform: Platform = {
   listFiles: (dir) => invoke("list_files", { dir }),
   readAllModels: (root) => invoke("read_all_models", { root }),
   watchFiles: (paths) => invoke("watch_files", { paths }),
+  setOnTopWith: (names) => invoke("set_on_top_with", { names }),
   onFileChange(cb) {
     void listen<{ path: string }>("fs-change", (e) => cb(e.payload.path));
   },
@@ -69,6 +72,7 @@ const devPlatform: Platform = (() => {
     readAllModels: async (p) => (await (await ok(await fetch(q("read_all_models", p)))).json()),
     async watchFiles(paths) { watched = paths; stamps.clear(); for (const p of paths) stamps.set(p, await sig(p)); },
     onFileChange(cb) { listeners.push(cb); },
+    async setOnTopWith() { /* browser: nothing to do */ },
     async pickFile(title) { try { return window.prompt(title + " (full path)"); } catch { return null; } },
   };
 })();

@@ -431,12 +431,19 @@ async function reloadConfig(first = false) {
   configPath = loaded.path;
   resources = new Resources(config.resources);
   library = new EntityLibrary(config.entityLibrary);
+  void applyOnTop();
   if (loaded.errors.length) showError(loaded.errors[0] + (loaded.errors.length > 1 ? ` (+${loaded.errors.length - 1} more)` : ""));
   if (first) selectColor(0);
   else {
     selectColor(Math.min(bgIndex, config.colors.length - 1));
     if (session) await rebuild().catch((e) => showError(e instanceof LoadError ? e.message : "Couldn't reload the model."));
   }
+}
+
+// Floating over Paint.NET (config on_top_with). The key pauses it until pressed again.
+let onTopPaused = false;
+function applyOnTop() {
+  return platform.setOnTopWith(onTopPaused ? [] : config.onTopWith).catch(() => undefined);
 }
 
 // ---------- input ----------
@@ -469,6 +476,13 @@ window.addEventListener("keydown", (e) => {
       void rebuild().catch((err) => showError(err.message));
     }
   } else if (keyMatches(e, k.screenshot)) { e.preventDefault(); void screenshot(); }
+  else if (keyMatches(e, k.on_top)) {
+    e.preventDefault();
+    if (!config.onTopWith.length) { showError("Stay on top is off in config.txt (on_top_with)."); return; }
+    onTopPaused = !onTopPaused;
+    void applyOnTop();
+    showError(`Stay on top over ${config.onTopWith.join(", ")}: ${onTopPaused ? "off" : "on"}`);
+  }
 });
 window.addEventListener("keyup", (e) => { if (e.code === repeatKey) stopRepeat(); });
 window.addEventListener("blur", stopRepeat);

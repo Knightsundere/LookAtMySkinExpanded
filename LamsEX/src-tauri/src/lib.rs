@@ -1,6 +1,8 @@
 //! Native side of LamsEX: plain file access and file watching.
 //! Everything about Minecraft formats lives in the TypeScript front end.
 
+mod ontop;
+
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use std::collections::HashSet;
@@ -178,6 +180,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             app.manage(Mutex::new(WatchState::default()));
+            app.manage(ontop::OnTop::start(app.handle().clone()));
             // The window starts hidden so the front end can restore its saved size first, then
             // show it. Safety net: show it anyway after a few seconds if that never happens.
             if let Some(win) = app.get_webview_window("main") {
@@ -196,7 +199,8 @@ pub fn run() {
             path_kind,
             list_files,
             read_all_models,
-            watch_files
+            watch_files,
+            ontop::set_on_top_with
         ])
         .run(tauri::generate_context!())
         .expect("error while running LamsEX");
