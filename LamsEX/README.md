@@ -33,6 +33,12 @@ First match wins, like resource pack order. A PNG you open from inside a folder 
 
 Keys can be remapped in `config.txt`.
 
+**Higher-resolution textures (e.g. 24x).** UVs stay in the model's own units (0-16 for blocks
+and items, the declared texture size for entities) and are scaled to whatever size the PNG
+really is, as in game: a 24x24 block texture, a 24x96 animated strip or a 96x96 mob texture on
+a model that says 64x64 all just work. Skins can be any multiple of 32 pixels wide from 64 up,
+so 96x96 / 96x48 skins open on the player model too. Keep the aspect ratio exact.
+
 ### Mobs and other entities (v2)
 
 - **`.bbmodel`** (Blockbench) opens directly, using the textures embedded in it, or else the
@@ -74,7 +80,7 @@ this file updates the open model.
 
 Matching by name only looks at the texture's file name, so many vanilla textures need a
 line here: chests (`entity/chest/normal`), beds (`entity/bed/red`), cat and horse variants,
-villager professions and similar. Without one, LamsEX can't find the model, and a 64x64
+villager professions and similar. Without one, LamsEX can't find the model, and a 64x64 (or 96x96)
 texture opens on the player model instead.
 
 **owen_ mods.** These mobs reuse other mobs' models with their own textures, so EMF exports

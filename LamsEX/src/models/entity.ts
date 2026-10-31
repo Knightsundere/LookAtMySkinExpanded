@@ -109,6 +109,7 @@ export function buildEntity(model: EModel, textures: (SceneTexture | null)[], fa
   const root = new THREE.Group();
   const parts = new Map<string, THREE.Object3D>();
   const used = new Set<SceneTexture>();
+  const checked = new Set<SceneTexture>();
   let cubes = 0;
 
   const addNodes = (nodes: ENode[], parent: THREE.Object3D, parentOrigin: V3, pose: THREE.Object3D | null, topLevel: boolean) => {
@@ -138,6 +139,12 @@ export function buildEntity(model: EModel, textures: (SceneTexture | null)[], fa
         if (!face || face.texture === null || !NORMALS[dir]) continue;
         const tex = textures[face.texture] ?? fallback;
         const [uw, uh] = model.uvSize(face.texture);
+        // A bigger PNG (e.g. 96x96 at 24x on a 64x64 layout) is fine; a different shape shifts every UV.
+        if (tex !== fallback && !checked.has(tex)) {
+          checked.add(tex);
+          if (Math.abs(tex.width * uh - tex.height * uw) > 0.01 * tex.width * uh)
+            warnings.push(`Texture is ${tex.width}x${tex.height} but the model's UVs are laid out for ${uw}x${uh}: the proportions don't match.`);
+        }
         const [u1, v1, u2, v2] = face.uv;
         let uvs: UV[] = [[u1, v1], [u2, v1], [u2, v2], [u1, v2]];
         const rot = (((face.rotation ?? 0) / 90) % 4 + 4) % 4;

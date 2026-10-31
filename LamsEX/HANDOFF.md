@@ -27,7 +27,7 @@ build, or the first run. The hand-written test models used below were in the dev
 - `main.ts`: wiring. Opening files (applies the spec's PNG rules 1-3), live reload, keys, background color, screenshots, the error strip.
 - `viewer.ts`: three.js scene, centering and fitting the model, rotate/pose/zoom controls, picking (ignores fully transparent pixels), redraws only when something changes.
 - `hud.ts`: the 8 button slots. Reads Owen's art, slices it into edges and middle, picks a whole-number scale, handles hover/press, shrinks long labels then adds "...".
-- `models/player.ts`: the skin model, built from a **list of parts** (ready for Custom Player Models later). Handles 64x64 / 64x32 and guesses classic or slim.
+- `models/player.ts`: the skin model, built from a **list of parts** (ready for Custom Player Models later). Handles 64x64 / 64x32 and the same layouts at higher resolutions (96x96 / 96x48 for 24x, 128x128...), and guesses classic or slim.
 - `models/blockmodel.ts`: JSON models (parent chain, texture variables, elements, rotation, tint) and the extruded `item/generated` sprite.
 - `models/entity.ts`: `.bbmodel` and `.geo.json`. Both are converted to Blockbench's own layout
   (bones with pivot + rotation, cubes with per-face UVs) and built by one function. Bedrock's

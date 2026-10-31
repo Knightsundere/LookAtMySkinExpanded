@@ -25,16 +25,21 @@ export interface SkinPart {
 
 export type SkinFormat = "modern" | "legacy";
 
+/** Skins at any multiple of 32 pixels wide from 64 up: 64x64 / 64x32, 96x96 / 96x48 (24x), 128x128... */
 export function skinFormat(img: Rgba): SkinFormat | null {
-  if (img.width === 64 && img.height === 64) return "modern";
-  if (img.width === 64 && img.height === 32) return "legacy";
+  const w = img.width;
+  if (w < 64 || w % 32) return null;
+  if (img.height === w) return "modern";
+  if (img.height * 2 === w) return "legacy";
   return null;
 }
 
-/** Slim when the unused strip of the right arm (x 54-55, y 20-31) is fully transparent. */
+/** Slim when the unused strip of the right arm (x 54-55, y 20-31 at 64x) is fully transparent. */
 export function guessSlim(img: Rgba): boolean {
-  if (img.height !== 64) return false;
-  for (let y = 20; y < 32; y++) for (let x = 54; x < 56; x++) if (alphaAt(img, x, y) !== 0) return false;
+  if (skinFormat(img) !== "modern") return false;
+  const s = img.width / 64;
+  for (let y = Math.floor(20 * s); y < Math.ceil(32 * s); y++)
+    for (let x = Math.floor(54 * s); x < Math.ceil(56 * s); x++) if (alphaAt(img, x, y) !== 0) return false;
   return true;
 }
 
@@ -93,6 +98,8 @@ export function addSkinBox(qb: QuadBuilder, b: SkinBox, texW: number, texH: numb
 
 export function buildSkin(img: Rgba, slim: boolean, file: string): BuiltModel {
   const format = skinFormat(img)!;
+  // Box UVs stay in the 64-wide layout whatever the PNG's size, as in game.
+  const [layoutW, layoutH] = [64, format === "modern" ? 64 : 32];
   const texture = new SceneTexture(img);
   const root = new THREE.Group();
   const parts = new Map<string, THREE.Object3D>();
@@ -106,7 +113,7 @@ export function buildSkin(img: Rgba, slim: boolean, file: string): BuiltModel {
     for (const outer of [false, true]) {
       const qb = new QuadBuilder();
       for (const b of p.boxes.filter((b) => !!b.outer === outer)) {
-        addSkinBox(qb, { ...b, from: sub(b.from, p.pivot), to: sub(b.to, p.pivot) }, img.width, img.height);
+        addSkinBox(qb, { ...b, from: sub(b.from, p.pivot), to: sub(b.to, p.pivot) }, layoutW, layoutH);
       }
       if (!qb.empty) texturedMeshes(qb.build(), texture, outer, pick).forEach((m) => pivot.add(m));
     }

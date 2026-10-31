@@ -349,7 +349,7 @@ async function openPng(path: string, fresh: boolean) {
       return;
     }
   }
-  // 2. A 64x64 / 64x32 PNG is a player skin.
+  // 2. A 64x64 / 64x32 PNG (or the same at a higher resolution, e.g. 96x96 / 96x48) is a player skin.
   const img = decodePng(await readOrFail(path));
   if (skinFormat(img)) {
     const s: Session = { path, slim: guessSlim(img), build: async () => {
